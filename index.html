@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Annualized Lift Calculator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   Helvetica, Arial, sans-serif;
+      background: #f2f2f0;
+      color: #1a1a1a;
+      min-height: 100vh;
+      padding: 2rem 1rem 4rem;
+    }
+
+    .container {
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2rem;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #111;
+    }
+
+    header p {
+      margin-top: 0.35rem;
+      font-size: 0.875rem;
+      color: #666;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1.75rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.04);
+      margin-bottom: 1.25rem;
+    }
+
+    .card-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #888;
+      margin-bottom: 1.25rem;
+    }
+
+    /* ── Form ── */
+    .field {
+      margin-bottom: 1.1rem;
+    }
+
+    .field:last-child { margin-bottom: 0; }
+
+    label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 0.35rem;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.9375rem;
+      font-family: inherit;
+      color: #111;
+      background: #fafafa;
+      border: 1.5px solid #ddd;
+      border-radius: 6px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    input[type="text"]:focus {
+      border-color: #3a7bd5;
+      box-shadow: 0 0 0 3px rgba(58,123,213,0.12);
+      background: #fff;
+    }
+
+    input[type="text"].error {
+      border-color: #d94f4f;
+      box-shadow: 0 0 0 3px rgba(217,79,79,0.1);
+    }
+
+    .field-error {
+      font-size: 0.75rem;
+      color: #d94f4f;
+      margin-top: 0.3rem;
+      display: none;
+    }
+
+    .field-error.visible { display: block; }
+
+    /* ── Button ── */
+    button {
+      width: 100%;
+      padding: 0.75rem;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      font-family: inherit;
+      color: #fff;
+      background: #3a7bd5;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.08s;
+      margin-top: 0.25rem;
+    }
+
+    button:hover  { background: #3068bf; }
+    button:active { background: #2a58a8; transform: scale(0.99); }
+
+    /* ── Results ── */
+    #results { display: none; }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid #f0f0f0;
+      gap: 1rem;
+    }
+
+    .result-row:last-child { border-bottom: none; }
+
+    .result-label {
+      font-size: 0.875rem;
+      color: #555;
+    }
+
+    .result-value {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: #111;
+      white-space: nowrap;
+    }
+
+    /* Accent row for incremental revenue */
+    .result-row.accent {
+      background: #eef4ff;
+      margin: 0.5rem -1.75rem;
+      padding: 0.75rem 1.75rem;
+      border-bottom: none;
+      border-radius: 0;
+    }
+
+    .result-row.accent .result-label {
+      font-weight: 600;
+      color: #2a58a8;
+      font-size: 0.9rem;
+    }
+
+    .result-row.accent .result-value {
+      font-size: 1.2rem;
+      color: #1e4a9a;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    /* ── Assumptions & Footer ── */
+    .assumptions {
+      font-size: 0.775rem;
+      color: #888;
+      line-height: 1.55;
+      padding-top: 0.25rem;
+    }
+
+    .assumptions strong { color: #666; }
+
+    footer {
+      text-align: center;
+      font-size: 0.72rem;
+      color: #bbb;
+      margin-top: 2.5rem;
+      letter-spacing: 0.02em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <h1>Annualized Lift Calculator</h1>
+      <p>Estimate the annual revenue impact of a conversion rate improvement.</p>
+    </header>
+
+    <!-- Inputs -->
+    <div class="card">
+      <div class="card-title">Test Parameters</div>
+
+      <div class="field">
+        <label for="duration">Test Duration (days)</label>
+        <input type="text" id="duration" placeholder="e.g. 28" inputmode="decimal" />
+        <div class="field-error" id="err-duration"></div>
+      </div>
+
+      <div class="field">
+        <label for="sessions">Total Sessions</label>
+        <input type="text" id="sessions" placeholder="e.g. 150,000" inputmode="decimal" />
+        <div class="field-error" id="err-sessions"></div>
+      </div>
+
+      <div class="field">
+        <label for="conversions">Total Conversions</label>
+        <input type="text" id="conversions" placeholder="e.g. 3,000" inputmode="decimal" />
+        <div class="field-error" id="err-conversions"></div>
+      </div>
+
+      <div class="field">
+        <label for="aov">Average Order Value ($)</label>
+        <input type="text" id="aov" placeholder="e.g. $850" inputmode="decimal" />
+        <div class="field-error" id="err-aov"></div>
+      </div>
+
+      <div class="field">
+        <label for="lift">Expected Lift (%)</label>
+        <input type="text" id="lift" placeholder="e.g. 10 or 10%" inputmode="decimal" />
+        <div class="field-error" id="err-lift"></div>
+      </div>
+
+      <button onclick="calculate()">Calculate</button>
+    </div>
+
+    <!-- Results -->
+    <div id="results">
+      <div class="card">
+        <div class="card-title">Test-Window Summary</div>
+        <div class="result-row">
+          <span class="result-label">Baseline conversion rate</span>
+          <span class="result-value" id="r-baseline-cr">—</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Daily sessions</span>
+          <span class="result-value" id="r-daily-sessions">—</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Annualized Projections</div>
+        <div class="result-row">
+          <span class="result-label">Annualized sessions</span>
+          <span class="result-value" id="r-annual-sessions">—</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Baseline annual revenue</span>
+          <span class="result-value" id="r-baseline-rev">—</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Projected conversion rate</span>
+          <span class="result-value" id="r-projected-cr">—</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Projected annual revenue</span>
+          <span class="result-value" id="r-projected-rev">—</span>
+        </div>
+        <div class="result-row accent">
+          <span class="result-label">Incremental annual revenue</span>
+          <span class="result-value" id="r-incremental-rev">—</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Incremental annual conversions</span>
+          <span class="result-value" id="r-incremental-conv">—</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Assumptions</div>
+        <p class="assumptions">
+          <strong>No seasonality adjustment.</strong> This projection assumes that
+          traffic volume and conversion behavior observed during the test window are
+          representative of the full year. Results may differ if the test ran during
+          an atypical period (e.g. a promotional event, holiday season, or low-traffic
+          quarter).
+        </p>
+      </div>
+    </div>
+
+    <footer>CRO Planning Tool &mdash; for illustrative purposes</footer>
+
+  </div>
+
+  <script>
+    function clean(val) {
+      return parseFloat(val.replace(/[$,%\s]/g, ""));
+    }
+
+    function fmtCurrency(n) {
+      return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function fmtPct(n) {
+      return (n * 100).toFixed(2) + "%";
+    }
+
+    function fmtNumber(n, decimals = 0) {
+      return n.toLocaleString("en-US", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+    }
+
+    function setError(id, msg) {
+      const input = document.getElementById(id);
+      const err   = document.getElementById("err-" + id);
+      input.classList.toggle("error", !!msg);
+      err.textContent = msg || "";
+      err.classList.toggle("visible", !!msg);
+      return !!msg;
+    }
+
+    function clearErrors() {
+      ["duration", "sessions", "conversions", "aov", "lift"].forEach(id => setError(id, ""));
+    }
+
+    function calculate() {
+      clearErrors();
+
+      const rawDuration    = document.getElementById("duration").value;
+      const rawSessions    = document.getElementById("sessions").value;
+      const rawConversions = document.getElementById("conversions").value;
+      const rawAov         = document.getElementById("aov").value;
+      const rawLift        = document.getElementById("lift").value;
+
+      const duration    = clean(rawDuration);
+      const sessions    = clean(rawSessions);
+      const conversions = clean(rawConversions);
+      const aov         = clean(rawAov);
+      const liftPct     = clean(rawLift);
+
+      let hasError = false;
+
+      if (isNaN(duration) || duration <= 0)
+        hasError = setError("duration", "Enter a positive number of days.") || hasError;
+
+      if (isNaN(sessions) || sessions <= 0)
+        hasError = setError("sessions", "Sessions must be greater than zero.") || hasError;
+
+      if (isNaN(conversions) || conversions < 0)
+        hasError = setError("conversions", "Conversions cannot be negative.") || hasError;
+      else if (!isNaN(sessions) && sessions > 0 && conversions > sessions)
+        hasError = setError("conversions", "Conversions cannot exceed sessions.") || hasError;
+
+      if (isNaN(aov) || aov <= 0)
+        hasError = setError("aov", "Enter a positive average order value.") || hasError;
+
+      if (isNaN(liftPct) || liftPct < 0)
+        hasError = setError("lift", "Lift must be zero or greater.") || hasError;
+
+      if (hasError) {
+        document.getElementById("results").style.display = "none";
+        return;
+      }
+
+      const baselineCR       = conversions / sessions;
+      const projectedCR      = baselineCR * (1 + liftPct / 100);
+      const dailySessions    = sessions / duration;
+      const annualSessions   = dailySessions * 365;
+      const baselineRevenue  = annualSessions * baselineCR * aov;
+      const projectedRevenue = annualSessions * projectedCR * aov;
+      const incrRevenue      = projectedRevenue - baselineRevenue;
+      const incrConversions  = annualSessions * (projectedCR - baselineCR);
+
+      document.getElementById("r-baseline-cr").textContent    = fmtPct(baselineCR);
+      document.getElementById("r-daily-sessions").textContent = fmtNumber(dailySessions, 1);
+      document.getElementById("r-annual-sessions").textContent= fmtNumber(annualSessions);
+      document.getElementById("r-baseline-rev").textContent   = fmtCurrency(baselineRevenue);
+      document.getElementById("r-projected-cr").textContent   = fmtPct(projectedCR);
+      document.getElementById("r-projected-rev").textContent  = fmtCurrency(projectedRevenue);
+      document.getElementById("r-incremental-rev").textContent= fmtCurrency(incrRevenue);
+      document.getElementById("r-incremental-conv").textContent = fmtNumber(incrConversions);
+
+      const results = document.getElementById("results");
+      results.style.display = "block";
+      results.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // Allow Enter key to trigger calculation
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") calculate();
+    });
+  </script>
+</body>
+</html>
