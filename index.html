@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRO Revenue Impact Calculator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f2f2f0;
+      --surface: #fff;
+      --text: #1a1a1a;
+      --muted: #888;
+      --secondary: #555;
+      --border: #e5e5e5;
+      --blue: #3a7bd5;
+      --blue-dark: #2a5cb8;
+      --blue-faint: #eef4ff;
+      --green: #1a7f5a;
+      --green-dark: #155f45;
+      --green-faint: #f0faf6;
+      --conservative: #6b7280;
+      --expected: #3a7bd5;
+      --aggressive: #1a7f5a;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.04);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem 5rem;
+      line-height: 1.5;
+    }
+
+    .wrap { max-width: 640px; margin: 0 auto; }
+
+    /* ── Header ── */
+    header { margin-bottom: 2rem; }
+    header h1 {
+      font-size: 1.6rem; font-weight: 800;
+      letter-spacing: -0.03em; color: #0d0d0d;
+    }
+    header p { margin-top: .3rem; font-size: .875rem; color: var(--muted); }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1rem;
+    }
+    .card-title {
+      font-size: .68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .09em;
+      color: var(--muted); margin-bottom: 1.25rem;
+    }
+    .card-sub {
+      font-size: .75rem; color: var(--muted);
+      margin-top: -.9rem; margin-bottom: 1.25rem;
+    }
+
+    /* ── Form ── */
+    .field { margin-bottom: 1.1rem; position: relative; }
+    .field:last-of-type { margin-bottom: 0; }
+
+    .field-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .75rem; margin-bottom: 1.1rem; }
+    .field-3 .field { margin-bottom: 0; }
+
+    label {
+      display: flex; align-items: center; gap: .35rem;
+      font-size: .8rem; font-weight: 600; color: #333;
+      margin-bottom: .35rem;
+    }
+
+    .tip {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #ddd; color: #666;
+      font-size: .6rem; font-weight: 700;
+      cursor: default; flex-shrink: 0; user-select: none;
+      transition: background .15s, color .15s;
+    }
+    .tip:hover { background: var(--blue); color: #fff; }
+
+    input[type="text"] {
+      width: 100%; padding: .6rem .75rem;
+      font-size: .9375rem; font-family: inherit; color: #111;
+      background: #fafafa; border: 1.5px solid var(--border);
+      border-radius: 6px; outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input[type="text"]:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(58,123,213,.12);
+      background: #fff;
+    }
+    input[type="text"].err {
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220,38,38,.1);
+    }
+
+    .ferr { font-size: .72rem; color: #dc2626; margin-top: .3rem; display: none; }
+    .ferr.on { display: block; }
+
+    hr.div { border: none; border-top: 1px solid var(--border); margin: 1.4rem 0; }
+
+    /* ── Slider ── */
+    .slider-row { display: flex; align-items: center; gap: .75rem; }
+    input[type="range"] {
+      flex: 1; -webkit-appearance: none; appearance: none;
+      height: 5px; background: #ddd; border-radius: 3px; outline: none; cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px;
+      border-radius: 50%; background: var(--blue);
+      box-shadow: 0 1px 4px rgba(0,0,0,.2); cursor: pointer;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px; height: 18px; border: none;
+      border-radius: 50%; background: var(--blue); cursor: pointer;
+    }
+    .slider-val { font-size: .9rem; font-weight: 700; color: var(--blue); min-width: 3.5rem; text-align: right; }
+
+    /* ── Tooltip ── */
+    #ttip {
+      position: fixed; background: #1a1a1a; color: #fff;
+      font-size: .72rem; line-height: 1.5;
+      padding: .5rem .75rem; border-radius: 6px; max-width: 240px;
+      pointer-events: none; opacity: 0; transition: opacity .15s;
+      z-index: 900; box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    }
+    #ttip.on { opacity: 1; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: .72rem 1.25rem; font-size: .9375rem; font-weight: 600;
+      font-family: inherit; border: none; border-radius: 7px; cursor: pointer;
+      transition: background .15s, transform .08s, box-shadow .15s;
+    }
+    .btn:active { transform: scale(.985); }
+    .btn-full { width: 100%; }
+    .btn-blue {
+      background: var(--blue); color: #fff;
+      box-shadow: 0 2px 6px rgba(58,123,213,.35);
+    }
+    .btn-blue:hover { background: var(--blue-dark); box-shadow: 0 4px 12px rgba(58,123,213,.4); }
+    .btn-green {
+      background: var(--green); color: #fff;
+      box-shadow: 0 2px 6px rgba(26,127,90,.35);
+    }
+    .btn-green:hover { background: var(--green-dark); }
+    .btn-ghost {
+      background: transparent; color: var(--secondary);
+      border: 1.5px solid var(--border); font-size: .8125rem;
+      padding: .5rem 1rem;
+    }
+    .btn-ghost:hover { background: var(--bg); border-color: #bbb; }
+    .btn-row { display: flex; gap: .75rem; margin-bottom: 1rem; }
+    .btn-row .btn { flex: 1; }
+
+    /* ── Results ── */
+    #results { display: none; }
+    .fadein { animation: fadeUp .35s ease both; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Banners ── */
+    .banner {
+      border-radius: 8px; padding: .75rem 1rem;
+      font-size: .82rem; font-weight: 500; margin-bottom: 1rem;
+      line-height: 1.5; display: none;
+    }
+    .banner.on { display: block; }
+    .banner-yellow { background: #fffbeb; border: 1.5px solid #fcd34d; color: #92400e; }
+    .banner-red    { background: #fef2f2; border: 1.5px solid #fca5a5; color: #991b1b; }
+
+    /* ── Scenario table ── */
+    .scenario-wrap { overflow-x: auto; }
+    table.st { width: 100%; border-collapse: collapse; }
+    table.st th, table.st td {
+      padding: .55rem .5rem; text-align: right;
+      font-size: .875rem; border-bottom: 1px solid var(--border);
+    }
+    table.st th { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    table.st td:first-child, table.st th:first-child {
+      text-align: left; font-weight: 500; color: var(--secondary); padding-left: 0;
+    }
+    table.st tr:last-child td { border-bottom: none; }
+    .th-c  { color: var(--conservative); }
+    .th-e  { color: var(--expected); }
+    .th-a  { color: var(--aggressive); }
+    .v-c   { color: var(--conservative); font-weight: 600; }
+    .v-e   { color: var(--expected);     font-weight: 700; }
+    .v-a   { color: var(--aggressive);   font-weight: 600; }
+    .roi-r .v-e { font-size: 1rem; font-weight: 800; }
+
+    /* ── Time horizon ── */
+    .th-chart svg { display: block; width: 100%; height: auto; }
+
+    /* ── Cost of inaction ── */
+    .coi {
+      background: linear-gradient(135deg, #1a1a2e 0%, #1e3a5f 100%);
+      border-radius: var(--radius); padding: 1.75rem;
+      margin-bottom: 1rem; text-align: center; color: #fff;
+    }
+    .coi-lbl {
+      font-size: .72rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: rgba(255,255,255,.55); margin-bottom: .5rem;
+    }
+    .coi-num {
+      font-size: clamp(1.8rem, 5vw, 2.8rem); font-weight: 900;
+      letter-spacing: -.04em; color: #fbbf24; line-height: 1; margin-bottom: .5rem;
+    }
+    .coi-txt { font-size: .875rem; color: rgba(255,255,255,.75); line-height: 1.45; }
+
+    /* ── Monthly chart ── */
+    .mo-chart { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .mo-chart svg { display: block; min-width: 380px; width: 100%; height: auto; }
+
+    /* ── Summary overlay ── */
+    #sumover {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.55); z-index: 500;
+      padding: 1.5rem 1rem; overflow-y: auto;
+    }
+    .sum-slide {
+      background: #fff; border-radius: 12px;
+      max-width: 680px; margin: 0 auto;
+      padding: 3rem 2.5rem 2rem; position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    }
+    .sum-x {
+      position: absolute; top: 1rem; right: 1rem;
+      background: none; border: none; font-size: 1.3rem;
+      cursor: pointer; color: #999; padding: .25rem .5rem; line-height: 1;
+    }
+    .sum-x:hover { color: #333; }
+    .sum-eye {
+      font-size: .7rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--blue); margin-bottom: .4rem;
+    }
+    .sum-client { font-size: 1rem; font-weight: 600; color: #333; margin-bottom: 1.5rem; }
+    .sum-big {
+      font-size: clamp(2rem, 6vw, 3.2rem); font-weight: 900;
+      letter-spacing: -.04em; color: #0d0d0d; line-height: 1; margin-bottom: .3rem;
+    }
+    .sum-big-lbl { font-size: .875rem; color: var(--muted); margin-bottom: .75rem; }
+    .sum-range {
+      font-size: .875rem; color: var(--secondary);
+      margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);
+    }
+    .sum-range b { font-weight: 600; }
+    .sum-metrics {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem; margin-bottom: 2rem;
+    }
+    .sm-val {
+      font-size: 1.55rem; font-weight: 800;
+      letter-spacing: -.03em; color: var(--green); line-height: 1; margin-bottom: .25rem;
+    }
+    .sm-lbl {
+      font-size: .68rem; color: var(--muted); font-weight: 500;
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .sum-rec {
+      background: var(--blue-faint); border-left: 3px solid var(--blue);
+      padding: .875rem 1rem; border-radius: 0 6px 6px 0;
+      font-size: .875rem; color: #1e3a6e; line-height: 1.55; margin-bottom: 1.5rem;
+    }
+    .sum-foot {
+      font-size: .68rem; color: #bbb;
+      border-top: 1px solid var(--border); padding-top: 1rem;
+    }
+    .sum-btns { display: flex; gap: .75rem; margin-bottom: 1.5rem; }
+    .sum-btns .btn { flex: 1; }
+
+    /* ── Assumptions ── */
+    .assume { font-size: .775rem; color: var(--muted); line-height: 1.6; }
+    .assume b { color: #666; }
+
+    footer {
+      text-align: center; font-size: .72rem; color: #bbb;
+      margin-top: 2.5rem; letter-spacing: .02em;
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { background: #fff !important; padding: 0 !important; }
+      #app  { display: none !important; }
+      #ttip { display: none !important; }
+      #sumover {
+        display: block !important; position: static !important;
+        background: none !important; padding: 0 !important;
+      }
+      .sum-slide {
+        box-shadow: none !important; border-radius: 0 !important;
+        padding: 2rem !important; max-width: 100% !important;
+      }
+      .sum-btns, .sum-x { display: none !important; }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      .field-3 { grid-template-columns: 1fr; }
+      .sum-metrics { grid-template-columns: 1fr 1fr; }
+      .sum-slide { padding: 2rem 1.25rem 1.5rem; }
+      table.st th, table.st td { padding: .45rem .25rem; font-size: .78rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="ttip"></div>
+
+<div class="wrap" id="app">
+
+  <header>
+    <h1>CRO Revenue Impact Calculator</h1>
+    <p>Build the business case for your testing engagement.</p>
+  </header>
+
+  <!-- ── Inputs ── -->
+  <div class="card">
+    <div class="card-title">Client &amp; Engagement</div>
+
+    <div class="field">
+      <label for="i-client">Client Name
+        <span class="tip" data-tip="Optional. Appears in the printable client summary slide.">?</span>
+      </label>
+      <input type="text" id="i-client" placeholder="e.g. Acme Corp (optional)" />
+    </div>
+
+    <div class="field">
+      <label for="i-invest">Engagement Investment ($)
+        <span class="tip" data-tip="The total fee the client is paying for this testing program. Used to calculate ROI multiple and payback period. Leave blank to omit ROI metrics.">?</span>
+      </label>
+      <input type="text" id="i-invest" placeholder="e.g. $25,000 (optional)" inputmode="decimal" />
+      <div class="ferr" id="e-invest"></div>
+    </div>
+
+    <hr class="div" />
+    <div class="card-title" style="margin-bottom:.5rem">Test Data</div>
+
+    <div class="field">
+      <label for="i-dur">Test Duration (days)
+        <span class="tip" data-tip="Number of days the A/B test ran. Find in your testing platform (Optimizely, VWO, Convert, etc.) under experiment settings.">?</span>
+      </label>
+      <input type="text" id="i-dur" placeholder="e.g. 28" inputmode="decimal" />
+      <div class="ferr" id="e-dur"></div>
+    </div>
+
+    <div class="field">
+      <label for="i-sess">Total Sessions
+        <span class="tip" data-tip="Total visits during the test window — control + variant combined. Pull from GA4 under Experiments or your testing platform's traffic report.">?</span>
+      </label>
+      <input type="text" id="i-sess" placeholder="e.g. 150,000" inputmode="decimal" />
+      <div class="ferr" id="e-sess"></div>
+    </div>
+
+    <div class="field">
+      <label for="i-conv">Total Conversions
+        <span class="tip" data-tip="Transactions or goal completions across both variants during the test. Pull from the platform's primary metric report.">?</span>
+      </label>
+      <input type="text" id="i-conv" placeholder="e.g. 3,000" inputmode="decimal" />
+      <div class="ferr" id="e-conv"></div>
+    </div>
+
+    <div class="field">
+      <label for="i-aov">Average Order Value ($)
+        <span class="tip" data-tip="Revenue ÷ orders for the test period. Pull from your ecommerce reports in GA4 or your order management system.">?</span>
+      </label>
+      <input type="text" id="i-aov" placeholder="e.g. $850" inputmode="decimal" />
+      <div class="ferr" id="e-aov"></div>
+    </div>
+
+    <hr class="div" />
+    <div class="card-title" style="margin-bottom:.5rem">Lift Scenarios</div>
+    <div class="card-sub">Three estimates — the tool projects revenue for each simultaneously.</div>
+
+    <div class="field-3">
+      <div class="field">
+        <label for="i-lo">Conservative (%)
+          <span class="tip" data-tip="Lower bound — use if the result is near the margin of error, or if you expect seasonality or regression to the mean to dampen post-test performance.">?</span>
+        </label>
+        <input type="text" id="i-lo" placeholder="e.g. 5" inputmode="decimal" />
+        <div class="ferr" id="e-lo"></div>
+      </div>
+      <div class="field">
+        <label for="i-mid">Expected (%)
+          <span class="tip" data-tip="Your primary point estimate — the observed lift from the test, or the most likely projection given your confidence level.">?</span>
+        </label>
+        <input type="text" id="i-mid" placeholder="e.g. 10" inputmode="decimal" />
+        <div class="ferr" id="e-mid"></div>
+      </div>
+      <div class="field">
+        <label for="i-hi">Aggressive (%)
+          <span class="tip" data-tip="Upper bound — use if results historically sustain post-test, or for a best-case scenario discussion with optimistic stakeholders.">?</span>
+        </label>
+        <input type="text" id="i-hi" placeholder="e.g. 15" inputmode="decimal" />
+        <div class="ferr" id="e-hi"></div>
+      </div>
+    </div>
+
+    <hr class="div" />
+    <div class="card-title" style="margin-bottom:.5rem">Confidence &amp; Risk</div>
+
+    <div class="field">
+      <label for="i-conf">Statistical Confidence (%)
+        <span class="tip" data-tip="The confidence level from your testing platform. Below 90% triggers a caution banner; below 80% disables client-facing projections.">?</span>
+      </label>
+      <input type="text" id="i-conf" placeholder="e.g. 95" value="95" inputmode="decimal" />
+      <div class="ferr" id="e-conf"></div>
+    </div>
+
+    <div class="field">
+      <label for="i-risk">Risk Adjustment Factor
+        <span class="tip" data-tip="Apply a haircut to all lift projections. At 80%, a 10% lift becomes 8%. Use this when presenting to skeptical stakeholders or to account for post-test regression.">?</span>
+      </label>
+      <div class="slider-row">
+        <input type="range" id="i-risk" min="50" max="100" value="100"
+               oninput="document.getElementById('risk-disp').textContent=this.value+'%'" />
+        <span class="slider-val" id="risk-disp">100%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-blue btn-full" onclick="calc()">Calculate Revenue Impact</button>
+  </div>
+
+  <!-- ── Results ── -->
+  <div id="results">
+
+    <div class="banner banner-yellow" id="ban-y">
+      ⚠️ <strong>Moderate confidence:</strong> Statistical confidence is below 90%. Treat these projections as directional estimates. Consider extending the test before drawing conclusions.
+    </div>
+    <div class="banner banner-red" id="ban-r">
+      🚨 <strong>Low confidence:</strong> Statistical confidence is below 80%. These projections should not be used for client commitments. Run the test longer to achieve reliable results.
+    </div>
+
+    <!-- Scenario table -->
+    <div class="card fadein">
+      <div class="card-title">Revenue Scenarios</div>
+      <div class="scenario-wrap">
+        <table class="st">
+          <thead>
+            <tr>
+              <th></th>
+              <th class="th-c">Conservative</th>
+              <th class="th-e">Expected</th>
+              <th class="th-a">Aggressive</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Projected CR</td>
+              <td class="v-c" id="r-cr-lo">—</td>
+              <td class="v-e" id="r-cr-mid">—</td>
+              <td class="v-a" id="r-cr-hi">—</td>
+            </tr>
+            <tr>
+              <td>Annual Incremental Revenue</td>
+              <td class="v-c" id="r-rev-lo">—</td>
+              <td class="v-e" id="r-rev-mid">—</td>
+              <td class="v-a" id="r-rev-hi">—</td>
+            </tr>
+            <tr>
+              <td>Annual Incremental Conversions</td>
+              <td class="v-c" id="r-conv-lo">—</td>
+              <td class="v-e" id="r-conv-mid">—</td>
+              <td class="v-a" id="r-conv-hi">—</td>
+            </tr>
+            <tr class="roi-r" id="row-roi">
+              <td>ROI Multiple</td>
+              <td class="v-c" id="r-roi-lo">—</td>
+              <td class="v-e" id="r-roi-mid">—</td>
+              <td class="v-a" id="r-roi-hi">—</td>
+            </tr>
+            <tr id="row-pb">
+              <td>Payback Period</td>
+              <td class="v-c" id="r-pb-lo">—</td>
+              <td class="v-e" id="r-pb-mid">—</td>
+              <td class="v-a" id="r-pb-hi">—</td>
+            </tr>
+            <tr id="row-nav">
+              <td>Net Annual Value</td>
+              <td class="v-c" id="r-nav-lo">—</td>
+              <td class="v-e" id="r-nav-mid">—</td>
+              <td class="v-a" id="r-nav-hi">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Time horizon -->
+    <div class="card fadein">
+      <div class="card-title">Expected Scenario — Revenue Over Time</div>
+      <div class="th-chart" id="th-chart"></div>
+    </div>
+
+    <!-- Cost of Inaction -->
+    <div class="coi fadein">
+      <div class="coi-lbl">Cost of Inaction</div>
+      <div class="coi-num" id="coi-num">$0</div>
+      <div class="coi-txt" id="coi-txt"></div>
+    </div>
+
+    <!-- Monthly cumulative -->
+    <div class="card fadein">
+      <div class="card-title">Expected Scenario — Cumulative Incremental Revenue by Month</div>
+      <div class="mo-chart" id="mo-chart"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="openSummary()" style="flex:2">Generate Client Summary</button>
+      <button class="btn btn-ghost" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑ Edit</button>
+    </div>
+
+  </div><!-- /results -->
+
+  <div class="card">
+    <div class="card-title">Assumptions</div>
+    <p class="assume">
+      <b>No seasonality adjustment.</b> This projection assumes that traffic volume and
+      conversion behavior observed during the test window are representative of the full
+      year. Results may differ if the test ran during an atypical period (e.g. a
+      promotional event, holiday season, or low-traffic quarter). The risk adjustment
+      factor can be used to partially account for this uncertainty.
+    </p>
+  </div>
+
+  <footer>CRO Planning Tool &mdash; for illustrative purposes &mdash; not a guarantee of performance</footer>
+</div>
+
+<!-- ── Client Summary Overlay ── -->
+<div id="sumover" onclick="overlayClick(event)">
+  <div class="sum-slide">
+    <button class="sum-x" onclick="closeSummary()">&#x2715;</button>
+    <div class="sum-eye">CRO Revenue Impact Analysis</div>
+    <div class="sum-client" id="s-client"></div>
+    <div class="sum-big"    id="s-big"></div>
+    <div class="sum-big-lbl">Expected Annual Incremental Revenue</div>
+    <div class="sum-range"  id="s-range"></div>
+    <div class="sum-metrics" id="s-metrics"></div>
+    <div class="sum-rec"    id="s-rec"></div>
+    <div class="sum-btns">
+      <button class="btn btn-blue" onclick="window.print()">Print / Save as PDF</button>
+      <button class="btn btn-ghost" onclick="closeSummary()">Close</button>
+    </div>
+    <div class="sum-foot">
+      Projections based on annualized extrapolation of test-window data. No seasonality
+      adjustment applied. For planning purposes only.
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Tooltip ──────────────────────────────────────────────────
+  const ttip = document.getElementById('ttip');
+  document.querySelectorAll('.tip').forEach(el => {
+    el.addEventListener('mouseenter', e => {
+      ttip.textContent = el.dataset.tip;
+      ttip.classList.add('on');
+      positionTip(e);
+    });
+    el.addEventListener('mouseleave', () => ttip.classList.remove('on'));
+    el.addEventListener('touchstart', e => {
+      e.preventDefault();
+      ttip.textContent = el.dataset.tip;
+      positionTip(e);
+      ttip.classList.add('on');
+      setTimeout(() => ttip.classList.remove('on'), 3000);
+    }, { passive: false });
+  });
+
+  function positionTip(e) {
+    const r = e.currentTarget.getBoundingClientRect();
+    let x = r.left, y = r.top - 8;
+    const maxX = window.innerWidth - 256;
+    ttip.style.left = Math.max(8, Math.min(x, maxX)) + 'px';
+    ttip.style.top  = (y - ttip.offsetHeight - 4) + 'px';
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────
+  function clean(v) { return parseFloat(String(v).replace(/[$,%\s]/g, '')); }
+
+  function fc(n, d = 0) {
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  }
+  function fp(n) { return (n * 100).toFixed(2) + '%'; }
+  function fn(n, d = 0) { return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function fm(n) { return n.toFixed(1) + '×'; }
+  function fd(n) { return n < 1 ? '< 1 day' : Math.round(n) + ' days'; }
+
+  function setErr(id, msg) {
+    const inp = document.getElementById('i-' + id);
+    const err = document.getElementById('e-' + id);
+    if (inp) inp.classList.toggle('err', !!msg);
+    if (err) { err.textContent = msg || ''; err.classList.toggle('on', !!msg); }
+    return !!msg;
+  }
+
+  function set(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+
+  // ── Scenario calc ─────────────────────────────────────────────
+  function scenario(baseCR, annSess, aov, lift, invest, riskAdj) {
+    const adj  = lift * (riskAdj / 100);
+    const proj = baseCR * (1 + adj / 100);
+    const rev  = annSess * (proj - baseCR) * aov;
+    const conv = annSess * (proj - baseCR);
+    const roi  = invest > 0 ? rev / invest : null;
+    const pb   = invest > 0 && rev > 0 ? (invest / rev) * 365 : null;
+    const nav  = invest > 0 ? rev - invest : null;
+    return { proj, rev, conv, roi, pb, nav, adj };
+  }
+
+  // ── Stored result ─────────────────────────────────────────────
+  let R = null;
+
+  // ── Main calculate ────────────────────────────────────────────
+  function calc() {
+    ['dur','sess','conv','aov','lo','mid','hi','invest','conf'].forEach(id => setErr(id, ''));
+
+    const dur    = clean(document.getElementById('i-dur').value);
+    const sess   = clean(document.getElementById('i-sess').value);
+    const conv   = clean(document.getElementById('i-conv').value);
+    const aov    = clean(document.getElementById('i-aov').value);
+    const lo     = clean(document.getElementById('i-lo').value);
+    const mid    = clean(document.getElementById('i-mid').value);
+    const hi     = clean(document.getElementById('i-hi').value);
+    const invRaw = document.getElementById('i-invest').value.trim();
+    const invest = invRaw ? clean(invRaw) : 0;
+    const conf   = clean(document.getElementById('i-conf').value);
+    const risk   = parseFloat(document.getElementById('i-risk').value);
+
+    let bad = false;
+    if (isNaN(dur)  || dur  <= 0) bad = setErr('dur',  'Enter a positive number of days.') || bad;
+    if (isNaN(sess) || sess <= 0) bad = setErr('sess', 'Sessions must be greater than zero.') || bad;
+    if (isNaN(conv) || conv <  0) bad = setErr('conv', 'Conversions cannot be negative.') || bad;
+    else if (!isNaN(sess) && sess > 0 && conv > sess) bad = setErr('conv', 'Conversions cannot exceed sessions.') || bad;
+    if (isNaN(aov)  || aov  <= 0) bad = setErr('aov',  'Enter a positive average order value.') || bad;
+    if (isNaN(lo)   || lo   <  0) bad = setErr('lo',   'Enter a non-negative lift.') || bad;
+    if (isNaN(mid)  || mid  <  0) bad = setErr('mid',  'Enter a non-negative lift.') || bad;
+    if (isNaN(hi)   || hi   <  0) bad = setErr('hi',   'Enter a non-negative lift.') || bad;
+    if (!isNaN(lo) && !isNaN(mid) && mid < lo) bad = setErr('mid', 'Expected should be ≥ conservative.') || bad;
+    if (!isNaN(mid) && !isNaN(hi) && hi  < mid) bad = setErr('hi',  'Aggressive should be ≥ expected.') || bad;
+    if (invRaw && (isNaN(invest) || invest < 0)) bad = setErr('invest', 'Enter a positive amount or leave blank.') || bad;
+    if (isNaN(conf) || conf <= 0 || conf > 100) bad = setErr('conf', 'Enter a value between 1 and 100.') || bad;
+
+    if (bad) { document.getElementById('results').style.display = 'none'; return; }
+
+    const baseCR  = conv / sess;
+    const dailySe = sess / dur;
+    const annSess = dailySe * 365;
+    const sLo  = scenario(baseCR, annSess, aov, lo,  invest, risk);
+    const sMid = scenario(baseCR, annSess, aov, mid, invest, risk);
+    const sHi  = scenario(baseCR, annSess, aov, hi,  invest, risk);
+
+    R = { dur, sess, conv, aov, lo, mid, hi, invest, conf, risk, baseCR, dailySe, annSess, sLo, sMid, sHi };
+
+    // Confidence banners
+    document.getElementById('ban-y').classList.toggle('on', conf < 90 && conf >= 80);
+    document.getElementById('ban-r').classList.toggle('on', conf < 80);
+
+    // ROI rows
+    const showROI = invest > 0;
+    ['row-roi','row-pb','row-nav'].forEach(id => {
+      document.getElementById(id).style.display = showROI ? '' : 'none';
+    });
+
+    function fill(suf, sc) {
+      set('r-cr-'  + suf, fp(sc.proj));
+      set('r-rev-' + suf, fc(sc.rev));
+      set('r-conv-'+ suf, fn(sc.conv));
+      if (showROI) {
+        set('r-roi-' + suf, sc.roi !== null ? fm(sc.roi) : '—');
+        set('r-pb-'  + suf, sc.pb  !== null ? fd(sc.pb)  : '—');
+        set('r-nav-' + suf, sc.nav !== null ? fc(sc.nav)  : '—');
+      }
+    }
+    fill('lo',  sLo);
+    fill('mid', sMid);
+    fill('hi',  sHi);
+
+    // Time horizon
+    const testRev = (sMid.rev / 365) * dur;
+    const q90Rev  = (sMid.rev / 365) * 90;
+    renderTimeHorizon(testRev, q90Rev, sMid.rev, dur);
+
+    // Cost of inaction
+    countUp(document.getElementById('coi-num'), sMid.rev, 1200, v => fc(v));
+    document.getElementById('coi-txt').textContent =
+      'Doing nothing costs you ' + fc(sMid.rev) + ' over the next 12 months.';
+
+    // Monthly chart
+    renderMonthly(sMid.rev);
+
+    // Show
+    const res = document.getElementById('results');
+    res.style.display = 'block';
+    requestAnimationFrame(() => res.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
+
+  // ── Time horizon SVG ─────────────────────────────────────────
+  function renderTimeHorizon(testRev, q90Rev, yearRev, dur) {
+    const W = 500, bH = 26, gap = 14, lW = 118, rPad = 90;
+    const maxBW = W - lW - rPad;
+    const items = [
+      { label: 'Test period (' + Math.round(dur) + ' days)', val: testRev, color: '#93c5fd' },
+      { label: 'Next 90 days',                               val: q90Rev,  color: '#3a7bd5' },
+      { label: 'Full year',                                  val: yearRev, color: '#1e40af' },
+    ];
+    const H = items.length * (bH + gap) + 20;
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">';
+    items.forEach((it, i) => {
+      const y  = 10 + i * (bH + gap);
+      const bw = yearRev > 0 ? Math.max(2, (it.val / yearRev) * maxBW) : 2;
+      const cy = y + bH / 2 + 4.5;
+      s += '<text x="0" y="' + cy + '" font-size="11" fill="#555" font-family="system-ui,sans-serif">' + it.label + '</text>';
+      s += '<rect x="' + lW + '" y="' + y + '" width="' + bw.toFixed(1) + '" height="' + bH + '" rx="4" fill="' + it.color + '"/>';
+      s += '<text x="' + (lW + bw + 7).toFixed(1) + '" y="' + cy + '" font-size="11.5" font-weight="700" fill="#1a1a1a" font-family="system-ui,sans-serif">' + fc(it.val) + '</text>';
+    });
+    s += '</svg>';
+    document.getElementById('th-chart').innerHTML = s;
+  }
+
+  // ── Monthly cumulative SVG ────────────────────────────────────
+  function renderMonthly(annRev) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const step   = annRev / 12;
+    const vals   = months.map((_, i) => step * (i + 1));
+    const maxV   = vals[11];
+    const W = 540, H = 200, pL = 8, pR = 8, pT = 22, pB = 28;
+    const cW = W - pL - pR, cH = H - pT - pB;
+    const slot = cW / 12, bW = slot * 0.62;
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">';
+    vals.forEach((v, i) => {
+      const x  = pL + i * slot + (slot - bW) / 2;
+      const bh = maxV > 0 ? (v / maxV) * cH : 0;
+      const y  = pT + cH - bh;
+      const op = (0.4 + 0.6 * (i / 11)).toFixed(2);
+      s += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bW.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="3" fill="#3a7bd5" opacity="' + op + '"/>';
+      s += '<text x="' + (x + bW / 2).toFixed(1) + '" y="' + (H - 5) + '" font-size="9" text-anchor="middle" fill="#888" font-family="system-ui,sans-serif">' + months[i] + '</text>';
+    });
+    // label on last bar
+    const lastX = (pL + 11 * slot + slot / 2).toFixed(1);
+    s += '<text x="' + lastX + '" y="' + (pT + 13) + '" font-size="10" text-anchor="middle" font-weight="700" fill="#3a7bd5" font-family="system-ui,sans-serif">' + fc(maxV) + '</text>';
+    s += '</svg>';
+    document.getElementById('mo-chart').innerHTML = s;
+  }
+
+  // ── Count-up ─────────────────────────────────────────────────
+  function countUp(el, target, ms, fmt) {
+    const t0 = performance.now();
+    (function tick(now) {
+      const p = Math.min((now - t0) / ms, 1);
+      const e = 1 - Math.pow(1 - p, 3);
+      el.textContent = fmt(target * e);
+      if (p < 1) requestAnimationFrame(tick);
+      else el.textContent = fmt(target);
+    })(t0);
+  }
+
+  // ── Client summary ────────────────────────────────────────────
+  function openSummary() {
+    if (!R) return;
+    const { lo, mid, hi, invest, risk, conf, baseCR, annSess, sLo, sMid, sHi } = R;
+    const client = document.getElementById('i-client').value.trim();
+
+    document.getElementById('s-client').textContent =
+      client ? client + ' — Revenue Impact Analysis' : 'Revenue Impact Analysis';
+    document.getElementById('s-big').textContent = fc(sMid.rev);
+    document.getElementById('s-range').innerHTML =
+      'Range: <b>' + fc(sLo.rev) + '</b> (conservative, ' + sLo.adj.toFixed(1) + '% lift) – ' +
+      '<b>' + fc(sHi.rev) + '</b> (aggressive, ' + sHi.adj.toFixed(1) + '% lift)';
+
+    let metrics = '';
+    if (invest > 0 && sMid.roi !== null) {
+      metrics += metric(fm(sMid.roi),   'ROI Multiple');
+      metrics += metric(fd(sMid.pb),    'Payback Period');
+      metrics += metric(fc(sMid.nav),   'Net Annual Value');
+    } else {
+      metrics += metric(fp(baseCR),      'Baseline CR');
+      metrics += metric(fn(annSess),     'Annual Sessions');
+      metrics += metric(fn(sMid.conv),   'Added Conversions / yr');
+    }
+    document.getElementById('s-metrics').innerHTML = metrics;
+
+    let rec = '';
+    if (invest > 0 && sMid.roi !== null) {
+      if (sMid.roi >= 5)
+        rec = 'This engagement is projected to deliver an exceptional ' + fm(sMid.roi) + ' ROI, recovering the full investment in ' + fd(sMid.pb) + '. The business case strongly supports continued investment in conversion optimization.';
+      else if (sMid.roi >= 2)
+        rec = 'A projected ' + fm(sMid.roi) + ' ROI with a ' + fd(sMid.pb) + ' payback period represents a compelling return. We recommend proceeding with the full testing roadmap to realize and sustain this lift.';
+      else
+        rec = 'The projected ' + fm(sMid.roi) + ' ROI indicates a solid case for this engagement. Extending the test program or running additional variants could increase returns further.';
+    } else {
+      rec = 'Based on test-window data, a sustained ' + mid.toFixed(1) + '% lift in conversion rate is projected to generate ' + fc(sMid.rev) + ' in incremental annual revenue. We recommend implementing the winning variant and continuing the test program to identify further opportunities.';
+    }
+    if (conf < 90) rec += ' Note: statistical confidence is ' + conf + '% — treat as directional until the test reaches ≥90% confidence.';
+    document.getElementById('s-rec').textContent = rec;
+
+    document.getElementById('sumover').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function metric(val, lbl) {
+    return '<div style="text-align:center"><div class="sm-val">' + val + '</div><div class="sm-lbl">' + lbl + '</div></div>';
+  }
+
+  function closeSummary() {
+    document.getElementById('sumover').style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function overlayClick(e) {
+    if (e.target === document.getElementById('sumover')) closeSummary();
+  }
+
+  // ── Keyboard ─────────────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.getElementById('sumover').style.display !== 'block') calc();
+    if (e.key === 'Escape') closeSummary();
+  });
+</script>
+</body>
+</html>
